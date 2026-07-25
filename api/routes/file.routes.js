@@ -24,6 +24,22 @@ router.get('/shorten', async (req, res) => {
   }
 });
 
+// Public Upload Route (Open to public without authentication)
+router.post('/public/upload', upload.array('files', 20), (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    upload.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message });
+      FileController.uploadFile(req, res);
+    });
+  } else {
+    FileController.uploadFile(req, res);
+  }
+});
+
+// Public Download Route (Download by file ID or file URL)
+router.get('/public/download/:id?', FileController.downloadFile);
+router.get('/public/download', FileController.downloadFile);
+
 // Upload File (Supports single 'file' or multiple 'files')
 router.post('/upload', authenticateTokenOrKey, upload.array('files', 20), (req, res, next) => {
   if (!req.files || req.files.length === 0) {

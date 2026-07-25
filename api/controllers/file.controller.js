@@ -5,7 +5,7 @@ import { dbService } from '../../services/db.service.js';
 import { TelegramService } from '../telegram/telegram.service.js';
 import { PreviewService } from '../../preview/preview.service.js';
 import { ThumbnailService } from '../../thumbnail/thumbnail.service.js';
-import { formatBytes, generateUniqueCode, detectMediaType, getDateTimeParts, getMimeType } from '../../utils/helper.js';
+import { formatBytes, generateUniqueCode, detectMediaType, getDateTimeParts, getMimeType, shortenWithTinyUrl } from '../../utils/helper.js';
 import { logger } from '../../utils/logger.js';
 
 function isAccessAllowed(file, req) {
@@ -14,6 +14,60 @@ function isAccessAllowed(file, req) {
   if (req.user && req.user.id !== 'guest') return true;
   return false;
 }
+
+async function resolveFileFromInputUrl(inputParam) {
+  if (!inputParam) return null;
+  const decoded = decodeURIComponent(inputParam).trim();
+
+  // 1. Direct ID / Code match
+  let file = dbService.getFileByIdOrCode(decoded);
+  if (file) return file;
+
+  // 2. Code pattern TG-XXXXXX
+  const codeMatch = decoded.match(/TG-\d+/i);
+  if (codeMatch) {
+    file = dbService.getFileByIdOrCode(codeMatch[0].toUpperCase());
+    if (file) return file;
+  }
+
+  // 3. Extract last pathname segment
+  try {
+    const urlObj = new URL(decoded.startsWith('http') ? decoded : `http://localhost/${decoded}`);
+    const segments = urlObj.pathname.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      const lastSeg = segments[segments.length - 1];
+      file = dbService.getFileByIdOrCode(lastSeg);
+      if (file) return file;
+    }
+  } catch (e) {}
+
+  // 4. TinyURL redirect resolution
+  if (decoded.includes('tinyurl.com/')) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(decoded, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+      clearTimeout(timeoutId);
+      const finalUrl = res.url;
+      const finalMatch = finalUrl.match(/TG-\d+/i);
+      if (finalMatch) {
+        file = dbService.getFileByIdOrCode(finalMatch[0].toUpperCase());
+        if (file) return file;
+      }
+      const finalUrlObj = new URL(finalUrl);
+      const finalSegments = finalUrlObj.pathname.split('/').filter(Boolean);
+      if (finalSegments.length > 0) {
+        file = dbService.getFileByIdOrCode(finalSegments[finalSegments.length - 1]);
+        if (file) return file;
+      }
+    } catch (e) {
+      logger.warn(`Failed to resolve TinyURL link ${decoded}: ${e.message}`);
+    }
+  }
+
+  return null;
+}
+
 
 export class FileController {
   /**
@@ -88,7 +142,6 @@ export class FileController {
 
       const targetFolder = req.body.folder || 'Root';
       const fileStatus = req.body.status || 'public';
-      const uploadedResults = [];
 
       // Determine target Telegram Channel ID:
       // Private status -> Private Owner Channel ID
@@ -101,6 +154,13 @@ export class FileController {
         targetChannelId = settings.telegram_channel_id || process.env.TELEGRAM_CHANNEL_ID;
       }
 
+      const protocol = req.protocol || 'http';
+      const host = req.get('host') || 'localhost:2560';
+      const baseUrl = `${protocol}://${host}`;
+
+      const uploadedResults = [];
+      const formattedResults = [];
+
       for (const file of filesToProcess) {
         const originalName = file.originalname || 'unnamed_file';
         const sizeBytes = file.size;
@@ -109,6 +169,14 @@ export class FileController {
         const uniqueCode = generateUniqueCode();
         const fileId = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
         const { dateStr, timeStr, isoStr } = getDateTimeParts();
+
+        // Construct absolute URLs
+        const rawUrl = `${baseUrl}/raw/${uniqueCode}`;
+        const downloadUrl = `${baseUrl}/download/${uniqueCode}`;
+        const previewUrl = `${baseUrl}/preview/${uniqueCode}`;
+
+        // Generate TinyURL short link for raw URL
+        const shortUrl = await shortenWithTinyUrl(rawUrl);
 
         // Send to Telegram or Simulation Mode using determined channel ID
         const tgResult = await TelegramService.uploadFileToTelegram(file.path, originalName, mediaType, targetChannelId);
@@ -137,9 +205,10 @@ export class FileController {
           size_bytes: sizeBytes,
           folder: targetFolder,
           thumbnail: ThumbnailService.getThumbnailType(mediaType, ext),
-          preview_url: `/preview/${uniqueCode}`,
-          download_url: `/download/${uniqueCode}`,
-          raw_url: `/raw/${uniqueCode}`,
+          preview_url: previewUrl,
+          download_url: downloadUrl,
+          raw_url: rawUrl,
+          short_url: shortUrl,
           status: fileStatus,
           upload_date: dateStr,
           upload_time: timeStr,
@@ -152,11 +221,29 @@ export class FileController {
 
         const saved = dbService.saveFile(newFileRecord);
         uploadedResults.push(saved);
+
+        formattedResults.push({
+          fileName: saved.file_name,
+          fileSize: saved.size,
+          uploadDate: `${saved.upload_date} ${saved.upload_time}`,
+          rawUrl: saved.raw_url,
+          shortUrl: saved.short_url,
+          fileId: saved.unique_code,
+          downloadUrl: saved.download_url
+        });
       }
+
+      const firstFormatted = formattedResults[0];
 
       return res.status(201).json({
         success: true,
-        message: `${uploadedResults.length} file(s) uploaded successfully!`,
+        message: `${formattedResults.length} file(s) uploaded successfully!`,
+        result: formattedResults.length === 1 ? firstFormatted : formattedResults,
+        fileName: firstFormatted.fileName,
+        fileSize: firstFormatted.fileSize,
+        uploadDate: firstFormatted.uploadDate,
+        rawUrl: firstFormatted.rawUrl,
+        shortUrl: firstFormatted.shortUrl,
         data: uploadedResults.length === 1 ? uploadedResults[0] : uploadedResults
       });
     } catch (err) {

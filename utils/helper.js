@@ -111,3 +111,25 @@ export function getDateTimeParts() {
   const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
   return { dateStr, timeStr, isoStr: now.toISOString() };
 }
+
+/**
+ * Shorten long URL using TinyURL API with graceful fallback
+ */
+export async function shortenWithTinyUrl(longUrl) {
+  if (!longUrl) return '';
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+    const res = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const shortUrl = await res.text();
+      return shortUrl.trim();
+    }
+  } catch (err) {
+    // Fallback gracefully to longUrl on network error or timeout
+  }
+  return longUrl;
+}
+

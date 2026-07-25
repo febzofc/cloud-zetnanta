@@ -51,12 +51,12 @@ async function handleHashRoute() {
     return;
   }
 
-  if (hash === 'about') {
-    state.activeTab = 'about';
+  if (['about', 'api-docs', 'docs'].includes(hash)) {
+    state.activeTab = hash === 'about' ? 'about' : 'api-docs';
     return;
   }
 
-  if (['dashboard', 'upload', 'file-manager', 'folder-manager', 'api-docs', 'settings'].includes(hash)) {
+  if (['dashboard', 'upload', 'file-manager', 'folder-manager', 'settings'].includes(hash)) {
     if (state.authToken) {
       state.activeTab = hash;
     } else {

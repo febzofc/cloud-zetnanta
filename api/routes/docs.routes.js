@@ -18,13 +18,43 @@ router.get('/docs', (req, res) => {
     },
     endpoints: [
       {
+        path: '/api/public/upload',
+        method: 'POST',
+        summary: 'Public File Upload (No API key required)',
+        contentType: 'multipart/form-data',
+        body: { file: 'File', files: 'File[] (optional)', folder: 'string (optional)' },
+        response: {
+          success: true,
+          message: '1 file(s) uploaded successfully!',
+          result: {
+            fileName: 'sample.mp4',
+            fileSize: '15.4 MB',
+            uploadDate: '2026-07-26 07:18',
+            rawUrl: 'https://domain.com/raw/TG-918273',
+            shortUrl: 'https://tinyurl.com/2p8x9y7z',
+            fileId: 'TG-918273',
+            downloadUrl: 'https://domain.com/download/TG-918273'
+          }
+        }
+      },
+      {
+        path: '/api/public/download',
+        method: 'GET',
+        summary: 'Public File Download by File ID or File URL (including TinyURL short link)',
+        queryParams: {
+          id: 'string (optional, e.g. TG-918273)',
+          url: 'string (optional, e.g. https://tinyurl.com/2p8x9y7z or https://domain.com/raw/TG-918273)'
+        },
+        response: 'Binary File Attachment Stream'
+      },
+      {
         path: '/api/upload',
         method: 'POST',
-        summary: 'Upload file to Telegram Cloud Storage',
+        summary: 'Upload file with optional API key or JWT token',
         headers: { 'X-API-KEY': 'string (optional)' },
         contentType: 'multipart/form-data',
         body: { files: 'File[] or File', folder: 'string (optional)' },
-        response: { success: true, message: 'string', data: 'FileMetadata' }
+        response: { success: true, message: 'string', result: 'Object', data: 'FileMetadata' }
       },
       {
         path: '/api/file/:id',
@@ -35,7 +65,8 @@ router.get('/docs', (req, res) => {
       {
         path: '/download/:id',
         method: 'GET',
-        summary: 'Download file directly with attachment disposition stream',
+        summary: 'Download file directly by path ID or query ?url=',
+        queryParams: { url: 'string (optional)' },
         response: 'Binary file download stream'
       },
       {

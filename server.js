@@ -35,10 +35,10 @@ async function startServer() {
     res.json({ status: 'online', service: 'Telegram Cloud Storage', timestamp: new Date().toISOString() });
   });
 
-  // Direct Routes as explicitly required in prompt specification
-  app.get('/download/:id', authenticateTokenOrKey, FileController.downloadFile);
-  app.get('/raw/:id', authenticateTokenOrKey, FileController.rawFile);
-  app.get('/preview/:id', authenticateTokenOrKey, FileController.previewFile);
+  // Direct Public Routes
+  app.get('/download/:id?', authenticateTokenOrKey, FileController.downloadFile);
+  app.get('/raw/:id?', authenticateTokenOrKey, FileController.rawFile);
+  app.get('/preview/:id?', authenticateTokenOrKey, FileController.previewFile);
 
   // API Routes
   app.use('/api', fileRoutes);
