@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -6,7 +7,7 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 export const config = {
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 2560,
   jwtSecret: process.env.JWT_SECRET || 'tg_cloud_storage_super_secret_jwt_key_2026',
   jwtExpire: '7d',
   rootDir: ROOT_DIR,
