@@ -1,0 +1,6 @@
+{
+  "name": "ZETNANTA CLOUD",
+  "description": "Layanan penyimpanan dan berbagi file cloud berbasis Telegram dengan antarmuka Pixel Art modern.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
